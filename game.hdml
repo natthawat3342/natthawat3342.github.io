@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เกมวิ่งยิงซอมบี้</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #2c1810, #1a0e08);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        .game-container {
+            width: 800px;
+            height: 600px;
+            background: linear-gradient(to bottom, #4a4a4a, #2a2a2a);
+            position: relative;
+            border: 3px solid #8B4513;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(139, 69, 19, 0.5);
+        }
+        
+        .name-tag {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            color: #FFD700;
+            font-size: 16px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 1000;
+            background: rgba(0,0,0,0.3);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        
+        .ui {
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+        
+        .player {
+            width: 40px;
+            height: 40px;
+            background: #00ff00;
+            position: absolute;
+            bottom: 50px;
+            left: 100px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,255,0,0.5);
+        }
+        
+        .zombie {
+            width: 35px;
+            height: 35px;
+            background: #ff4444;
+            position: absolute;
+            border-radius: 3px;
+            box-shadow: 0 0 8px rgba(255,68,68,0.5);
+        }
+        
+        .bullet {
+            width: 8px;
+            height: 8px;
+            background: #ffff00;
+            position: absolute;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(255,255,0,0.8);
+        }
+        
+        .ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 50px;
+            background: #8B4513;
+            border-top: 2px solid #654321;
+        }
+        
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0000;
+            font-size: 36px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 200;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 60px;
+            left: 15px;
+            color: #fff;
+            font-size: 12px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="name-tag">ณัฐวัชร พิมพ์คำ</div>
+        <div class="ui">
+            <div>คะแนน: <span id="score">0</span></div>
+            <div>ชีวิต: <span id="lives">3</span></div>
+            <div>กระสุน: <span id="ammo">20</span></div>
+        </div>
+        <div class="controls">
+            WASD = เคลื่อนที่ | SPACE = ยิง | R = เติมกระสุน
+        </div>
+        <div class="player" id="player"></div>
+        <div class="ground"></div>
+        <div class="game-over" id="gameOver">
+            <div>GAME OVER</div>
+            <div style="font-size: 18px; margin-top: 10px;">กด R เพื่อเริ่มใหม่</div>
+        </div>
+    </div>
+
+    <script>
+        let game = {
+            player: { x: 100, y: 550, speed: 5 },
+            zombies: [],
+            bullets: [],
+            score: 0,
+            lives: 3,
+            ammo: 20,
+            gameRunning: true,
+            keys: {}
+        };
+
+        const gameContainer = document.querySelector('.game-container');
+        const player = document.getElementById('player');
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+        const ammoEl = document.getElementById('ammo');
+        const gameOverEl = document.getElementById('gameOver');
+
+        // การจัดการแป้นพิมพ์
+        document.addEventListener('keydown', (e) => {
+            game.keys[e.key.toLowerCase()] = true;
+            
+            if (e.key === ' ') {
+                e.preventDefault();
+                shoot();
+            }
+            
+            if (e.key.toLowerCase() === 'r') {
+                if (!game.gameRunning) {
+                    restartGame();
+                } else {
+                    reload();
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            game.keys[e.key.toLowerCase()] = false;
+        });
+
+        function updatePlayer() {
+            if (!game.gameRunning) return;
+            
+            // การเคลื่อนที่
+            if (game.keys['a'] || game.keys['arrowleft']) {
+                game.player.x = Math.max(0, game.player.x - game.player.speed);
+            }
+            if (game.keys['d'] || game.keys['arrowright']) {
+                game.player.x = Math.min(760, game.player.x + game.player.speed);
+            }
+            if (game.keys['w'] || game.keys['arrowup']) {
+                game.player.y = Math.max(100, game.player.y - game.player.speed);
+            }
+            if (game.keys['s'] || game.keys['arrowdown']) {
+                game.player.y = Math.min(550, game.player.y + game.player.speed);
+            }
+            
+            // อัพเดตตำแหน่งผู้เล่น
+            player.style.left = game.player.x + 'px';
+            player.style.bottom = (600 - game.player.y) + 'px';
+        }
+
+        function shoot() {
+            if (!game.gameRunning || game.ammo <= 0) return;
+            
+            game.ammo--;
+            game.bullets.push({
+                x: game.player.x + 20,
+                y: game.player.y,
+                speed: 8
+            });
+            
+            const bullet = document.createElement('div');
+            bullet.className = 'bullet';
+            gameContainer.appendChild(bullet);
+        }
+
+        function reload() {
+            if (!game.gameRunning) return;
+            game.ammo = 20;
+        }
+
+        function spawnZombie() {
+            if (!game.gameRunning) return;
+            
+            const zombie = {
+                x: 800,
+                y: Math.random() * 400 + 100,
+                speed: 1 + Math.random() * 2,
+                element: document.createElement('div')
+            };
+            
+            zombie.element.className = 'zombie';
+            zombie.element.style.left = zombie.x + 'px';
+            zombie.element.style.bottom = (600 - zombie.y) + 'px';
+            gameContainer.appendChild(zombie.element);
+            
+            game.zombies.push(zombie);
+        }
+
+        function updateZombies() {
+            game.zombies.forEach((zombie, index) => {
+                zombie.x -= zombie.speed;
+                zombie.element.style.left = zombie.x + 'px';
+                
+                // ลบซอมบี้ที่ออกจากหน้าจอ
+                if (zombie.x < -50) {
+                    zombie.element.remove();
+                    game.zombies.splice(index, 1);
+                    return;
+                }
+                
+                // ตรวจสอบการชนกับผู้เล่น
+                if (checkCollision(game.player, zombie)) {
+                    zombie.element.remove();
+                    game.zombies.splice(index, 1);
+                    game.lives--;
+                    
+                    if (game.lives <= 0) {
+                        gameOver();
+                    }
+                }
+            });
+        }
+
+        function updateBullets() {
+            const bullets = document.querySelectorAll('.bullet');
+            
+            game.bullets.forEach((bullet, bulletIndex) => {
+                bullet.x += bullet.speed;
+                
+                if (bullets[bulletIndex]) {
+                    bullets[bulletIndex].style.left = bullet.x + 'px';
+                    bullets[bulletIndex].style.bottom = (600 - bullet.y) + 'px';
+                }
+                
+                // ลบกระสุนที่ออกจากหน้าจอ
+                if (bullet.x > 820) {
+                    if (bullets[bulletIndex]) bullets[bulletIndex].remove();
+                    game.bullets.splice(bulletIndex, 1);
+                    return;
+                }
+                
+                // ตรวจสอบการชนกับซอมบี้
+                game.zombies.forEach((zombie, zombieIndex) => {
+                    if (checkCollision(bullet, zombie)) {
+                        // ลบกระสุนและซอมบี้
+                        if (bullets[bulletIndex]) bullets[bulletIndex].remove();
+                        zombie.element.remove();
+                        game.bullets.splice(bulletIndex, 1);
+                        game.zombies.splice(zombieIndex, 1);
+                        game.score += 10;
+                    }
+                });
+            });
+        }
+
+        function checkCollision(obj1, obj2) {
+            const distance = Math.sqrt(
+                Math.pow(obj1.x - obj2.x, 2) + Math.pow(obj1.y - obj2.y, 2)
+            );
+            return distance < 35;
+        }
+
+        function updateUI() {
+            scoreEl.textContent = game.score;
+            livesEl.textContent = game.lives;
+            ammoEl.textContent = game.ammo;
+        }
+
+        function gameOver() {
+            game.gameRunning = false;
+            gameOverEl.style.display = 'block';
+        }
+
+        function restartGame() {
+            // รีเซ็ตเกม
+            game = {
+                player: { x: 100, y: 550, speed: 5 },
+                zombies: [],
+                bullets: [],
+                score: 0,
+                lives: 3,
+                ammo: 20,
+                gameRunning: true,
+                keys: {}
+            };
+            
+            // ลบองค์ประกอบทั้งหมด
+            document.querySelectorAll('.zombie, .bullet').forEach(el => el.remove());
+            gameOverEl.style.display = 'none';
+            
+            // รีเซ็ตตำแหน่งผู้เล่น
+            player.style.left = '100px';
+            player.style.bottom = '50px';
+        }
+
+        // ลูปเกมหลัก
+        function gameLoop() {
+            if (game.gameRunning) {
+                updatePlayer();
+                updateZombies();
+                updateBullets();
+                updateUI();
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        // เริ่มต้นเกม
+        let zombieSpawnTimer = 0;
+        setInterval(() => {
+            if (game.gameRunning) {
+                zombieSpawnTimer++;
+                if (zombieSpawnTimer % 120 === 0) { // สร้างซอมบี้ทุก 2 วินาที
+                    spawnZombie();
+                }
+            }
+        }, 16);
+
+        gameLoop();
+    </script>
+</body>
+</html>
